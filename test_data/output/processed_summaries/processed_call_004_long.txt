@@ -1,0 +1,5 @@
+Here is a summary of the support call:
+
+* **Billing and Technical Issues:** The customer disputed unauthorized "premium add-on" charges from a March plan change, resulting in a credit of $42 per seat; additionally, the agent identified that an invalid date field in the data export is causing the large-scale migration to stall.
+* **Resolution and Troubleshooting:** To resolve the migration failure, the agent advised the customer to either correct the malformed record or skip it, while the billing error was resolved by applying a credit to the next statement.
+* **Training and Next Steps:** The customer requested a private training session for the reporting module to prepare for upcoming staff onboarding; the agent will send calendar holds for the 9th and 11th to finalize the session date.

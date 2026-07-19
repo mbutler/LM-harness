@@ -1,0 +1,3 @@
+* **Issue:** The customer is unable to export quarterly reports to PDF format, as the process hangs indefinitely for documents exceeding 50 pages.
+* **Root Cause:** The agent identified this as a known bug in the current software build that is scheduled to be fixed in next week's release.
+* **Resolution:** The agent provided a workaround—exporting the report in smaller date-range chunks—and sent the customer an email with detailed instructions.

@@ -1,0 +1,8 @@
+id,customer_name,customer_comment,companies,sentiment
+1,Dana R.,I switched from Dropbox to Google Drive last year and honestly the integration with Slack has been seamless.,"Dropbox, Google Drive, Slack",POSITIVE
+2,Marcus T.,Your support team is way more responsive than what I dealt with at Comcast. Keep it up.,Comcast,POSITIVE
+3,Priya S.,The export feature keeps crashing when I try to send reports to Salesforce.,Salesforce,NEGATIVE
+4,Jordan L.,"No complaints really, everything just works.",NONE,POSITIVE
+5,Elif K.,"We evaluated Notion, Asana, and Monday.com before landing on your product. The Trello import saved us a week of setup.","Notion, Asana, Monday.com, Trello",POSITIVE
+6,Sam W.,,,
+7,Renee B.,"Pricing feels steep compared to Zoho, but the Microsoft Teams plugin is why we stay.","Zoho, Microsoft Teams",MIXED

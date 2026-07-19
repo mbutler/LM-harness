@@ -1,0 +1,3 @@
+* The customer reported being charged twice due to a failed payment retry on the 5th.
+* The agent issued a refund, which the customer should receive within three to five business days.
+* To prevent future duplicates, the agent removed the outdated payment method and flagged the account.

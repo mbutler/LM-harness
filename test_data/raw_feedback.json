@@ -1,0 +1,27 @@
+[
+    {
+        "ticket_id": "T-1001",
+        "channel": "email",
+        "customer_comment": "After the last update, syncing with iCloud and OneDrive both broke. Apple support says it's on your end."
+    },
+    {
+        "ticket_id": "T-1002",
+        "channel": "chat",
+        "customer_comment": "Love the new dashboard! Way cleaner than what HubSpot offers."
+    },
+    {
+        "ticket_id": "T-1003",
+        "channel": "phone",
+        "customer_comment": "Caller asked whether the Stripe and PayPal integrations support recurring invoices."
+    },
+    {
+        "ticket_id": "T-1004",
+        "channel": "email",
+        "customer_comment": "Please cancel my subscription."
+    },
+    {
+        "ticket_id": "T-1005",
+        "channel": "chat",
+        "customer_comment": "Our IT team at Deloitte needs SSO through Okta before we can roll this out company-wide."
+    }
+]

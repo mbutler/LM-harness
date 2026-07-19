@@ -1,0 +1,8 @@
+Agent: Good afternoon, this is Ravi in billing.
+Customer: Hi. I was charged twice this month — once on the 3rd and again on the 5th.
+Agent: I'm sorry to hear that. Let me pull up the transactions... I do see both charges. The one on the 5th was a failed retry that shouldn't have posted.
+Customer: So I'll get it back?
+Agent: Yes, I'm issuing the refund right now. It typically lands in three to five business days depending on your bank.
+Customer: Fine. Can you also make sure it doesn't happen again next cycle?
+Agent: I've flagged the account and removed the stale payment method that caused the duplicate retry. You're set for next month.
+Customer: Alright, thank you.

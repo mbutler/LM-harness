@@ -1,0 +1,10 @@
+Agent: Support line, this is Devon speaking.
+Customer: Hey Devon. We're a team of twelve and we just upgraded to the Business plan, but three of our seats still show as read-only.
+Agent: Let me take a look. Can you confirm the account email?
+Customer: It's ops at brightfield dash consulting dot com.
+Agent: Thanks. I see it — the upgrade processed, but the seat reassignment didn't sync. I'm pushing a manual refresh now.
+Customer: Okay... yes, I see two of them flipped to full access. The third one, sarah at the same domain, is still read-only.
+Agent: That one has a pending invite that was never accepted, which blocks the role change. I'll cancel and resend it.
+Customer: She just accepted the new one. Looks good now.
+Agent: Perfect. I'm also crediting this month's charge for those three seats for the trouble.
+Customer: Oh, appreciated. That's great service.

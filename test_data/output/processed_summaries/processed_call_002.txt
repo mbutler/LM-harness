@@ -1,0 +1,3 @@
+* **Issue:** A customer reported that three seats remained in "read-only" mode despite upgrading to a Business plan.
+* **Resolution:** The agent performed a manual sync to fix two seats and resent a pending invitation to resolve the third seat's access issue.
+* **Outcome:** The customer confirmed all seats are now fully functional, and the agent issued a credit for the three affected seats as compensation.

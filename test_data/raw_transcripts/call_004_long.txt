@@ -1,0 +1,79 @@
+Agent: Thank you for calling enterprise support, this is Sasha. I understand you have several items today?
+Customer: Yes, three separate things actually. Bear with me.
+Agent: Okay, let's move on to the billing dispute item.
+Customer: I'm looking at invoice 334 and there's a line item for 'premium add-on' that we never ordered.
+Agent: Let me pull up invoice 157... I see the add-on was attached during the March plan change. I can remove it and credit the difference.
+Customer: How much is the credit exactly?
+Agent: It comes to $42 per seat for the affected billing cycle, applied to your next statement.
+Customer: I'm looking at invoice 52 and there's a line item for 'premium add-on' that we never ordered.
+Agent: Let me pull up invoice 77... I see the add-on was attached during the March plan change. I can remove it and credit the difference.
+Customer: How much is the credit exactly?
+Agent: It comes to $42 per seat for the affected billing cycle, applied to your next statement.
+Customer: I'm looking at invoice 99 and there's a line item for 'premium add-on' that we never ordered. Just to confirm my understanding before we continue.
+Agent: Let me pull up invoice 377... I see the add-on was attached during the March plan change. I can remove it and credit the difference.
+Customer: How much is the credit exactly? Just to confirm my understanding before we continue.
+Agent: It comes to $42 per seat for the affected billing cycle, applied to your next statement.
+Customer: I'm looking at invoice 522 and there's a line item for 'premium add-on' that we never ordered.
+Agent: Let me pull up invoice 222... I see the add-on was attached during the March plan change. I can remove it and credit the difference.
+Customer: How much is the credit exactly?
+Agent: It comes to $42 per seat for the affected billing cycle, applied to your next statement.
+Customer: I'm looking at invoice 447 and there's a line item for 'premium add-on' that we never ordered.
+Agent: Let me pull up invoice 431... I see the add-on was attached during the March plan change. I can remove it and credit the difference.
+Customer: How much is the credit exactly?
+Agent: It comes to $42 per seat for the affected billing cycle, applied to your next statement.
+Customer: I'm looking at invoice 95 and there's a line item for 'premium add-on' that we never ordered. Just to confirm my understanding before we continue.
+Agent: Let me pull up invoice 567... I see the add-on was attached during the March plan change. I can remove it and credit the difference.
+Customer: How much is the credit exactly? Just to confirm my understanding before we continue.
+Agent: It comes to $42 per seat for the affected billing cycle, applied to your next statement.
+Agent: Okay, let's move on to the data migration item.
+Customer: Second issue — we're migrating 849 gigabytes of project history from our old vendor and the importer keeps stalling at around 60 percent.
+Agent: The importer batches records in groups of ten thousand. A stall at a consistent percentage usually means a malformed record in that batch.
+Customer: Can you tell which record it is from your side?
+Agent: Yes, the error log points to a project entry with an invalid date field. If you correct the export or skip that record, the import should complete.
+Customer: Second issue — we're migrating 648 gigabytes of project history from our old vendor and the importer keeps stalling at around 60 percent.
+Agent: The importer batches records in groups of ten thousand. A stall at a consistent percentage usually means a malformed record in that batch.
+Customer: Can you tell which record it is from your side?
+Agent: Yes, the error log points to a project entry with an invalid date field. If you correct the export or skip that record, the import should complete.
+Customer: Second issue — we're migrating 593 gigabytes of project history from our old vendor and the importer keeps stalling at around 60 percent. Just to confirm my understanding before we continue.
+Agent: The importer batches records in groups of ten thousand. A stall at a consistent percentage usually means a malformed record in that batch.
+Customer: Can you tell which record it is from your side? Just to confirm my understanding before we continue.
+Agent: Yes, the error log points to a project entry with an invalid date field. If you correct the export or skip that record, the import should complete.
+Customer: Second issue — we're migrating 229 gigabytes of project history from our old vendor and the importer keeps stalling at around 60 percent.
+Agent: The importer batches records in groups of ten thousand. A stall at a consistent percentage usually means a malformed record in that batch.
+Customer: Can you tell which record it is from your side?
+Agent: Yes, the error log points to a project entry with an invalid date field. If you correct the export or skip that record, the import should complete.
+Customer: Second issue — we're migrating 139 gigabytes of project history from our old vendor and the importer keeps stalling at around 60 percent.
+Agent: The importer batches records in groups of ten thousand. A stall at a consistent percentage usually means a malformed record in that batch.
+Customer: Can you tell which record it is from your side?
+Agent: Yes, the error log points to a project entry with an invalid date field. If you correct the export or skip that record, the import should complete.
+Customer: Second issue — we're migrating 556 gigabytes of project history from our old vendor and the importer keeps stalling at around 60 percent. Just to confirm my understanding before we continue.
+Agent: The importer batches records in groups of ten thousand. A stall at a consistent percentage usually means a malformed record in that batch.
+Customer: Can you tell which record it is from your side? Just to confirm my understanding before we continue.
+Agent: Yes, the error log points to a project entry with an invalid date field. If you correct the export or skip that record, the import should complete.
+Agent: Okay, let's move on to the training and rollout item.
+Customer: Last thing. We onboard 576 new staff next month and need training resources for the reporting module.
+Agent: We offer a live weekly webinar and a self-paced course. I can also schedule a private session for groups over twenty.
+Customer: A private session would be ideal. Can we get it before the 15th?
+Agent: I have availability on the 9th and 11th. I'll send a calendar hold for both and you can keep whichever works.
+Customer: Last thing. We onboard 108 new staff next month and need training resources for the reporting module.
+Agent: We offer a live weekly webinar and a self-paced course. I can also schedule a private session for groups over twenty.
+Customer: A private session would be ideal. Can we get it before the 15th?
+Agent: I have availability on the 9th and 11th. I'll send a calendar hold for both and you can keep whichever works.
+Customer: Last thing. We onboard 195 new staff next month and need training resources for the reporting module. Just to confirm my understanding before we continue.
+Agent: We offer a live weekly webinar and a self-paced course. I can also schedule a private session for groups over twenty.
+Customer: A private session would be ideal. Can we get it before the 15th? Just to confirm my understanding before we continue.
+Agent: I have availability on the 9th and 11th. I'll send a calendar hold for both and you can keep whichever works.
+Customer: Last thing. We onboard 732 new staff next month and need training resources for the reporting module.
+Agent: We offer a live weekly webinar and a self-paced course. I can also schedule a private session for groups over twenty.
+Customer: A private session would be ideal. Can we get it before the 15th?
+Agent: I have availability on the 9th and 11th. I'll send a calendar hold for both and you can keep whichever works.
+Customer: Last thing. We onboard 636 new staff next month and need training resources for the reporting module.
+Agent: We offer a live weekly webinar and a self-paced course. I can also schedule a private session for groups over twenty.
+Customer: A private session would be ideal. Can we get it before the 15th?
+Agent: I have availability on the 9th and 11th. I'll send a calendar hold for both and you can keep whichever works.
+Customer: Last thing. We onboard 547 new staff next month and need training resources for the reporting module. Just to confirm my understanding before we continue.
+Agent: We offer a live weekly webinar and a self-paced course. I can also schedule a private session for groups over twenty.
+Customer: A private session would be ideal. Can we get it before the 15th? Just to confirm my understanding before we continue.
+Agent: I have availability on the 9th and 11th. I'll send a calendar hold for both and you can keep whichever works.
+Agent: To recap: the billing credit is applied, the migration fix is identified, and the private training session is being scheduled.
+Customer: That covers everything. Thanks, Sasha.

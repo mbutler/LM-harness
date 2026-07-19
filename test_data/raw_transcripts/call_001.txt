@@ -1,0 +1,10 @@
+Agent: Thanks for calling, this is Maya. How can I help you today?
+Customer: Hi Maya, I'm trying to get the quarterly report export working. Every time I hit export it just spins forever.
+Agent: I'm sorry about that. Which format are you exporting to?
+Customer: PDF. CSV works fine, it's only PDF that hangs.
+Agent: Got it. There's a known issue with PDF exports over 50 pages in the current build. Engineering has a fix scheduled for next week's release.
+Customer: Okay, that matches what I'm seeing — ours is about 80 pages. Is there a workaround?
+Agent: Yes — if you export in two date-range chunks, each will come in under the limit. I can email you the steps.
+Customer: That would be great, thanks.
+Agent: Done. Anything else I can help with?
+Customer: No, that covers it. Thanks for the quick answer.
