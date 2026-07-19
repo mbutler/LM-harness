@@ -103,6 +103,30 @@ Or any plain function: return `None`/`True` for valid; return `False`, a reason 
 harness.process_csv(..., validator=lambda out: None if len(out) < 500 else "response too long")
 ```
 
+## Schema-enforced JSON output
+
+For structured extraction, pass a JSON Schema via `json_schema=` to `generate()` or any processor. Generation is grammar-constrained server-side (this is the practical payoff of the model's tool-use training), so the output **cannot** be malformed JSON — no parsing failures, no corrective retries for structure:
+
+```python
+harness.process_json_list("tickets.json", "extracted.json", target_key="comment",
+    system_prompt="Extract the companies mentioned and the overall sentiment.",
+    json_schema={
+        "type": "object",
+        "properties": {
+            "companies": {"type": "array", "items": {"type": "string"}},
+            "sentiment": {"type": "string", "enum": ["POSITIVE", "NEGATIVE", "NEUTRAL"]},
+        },
+        "required": ["companies", "sentiment"],
+    })
+```
+
+- JSON and JSONL outputs store the **parsed object** (real nested data, not a JSON string); CSV cells and directory files store the compact JSON string.
+- Schema jobs route through LM Studio's OpenAI-compat endpoint (`/v1/chat/completions`) because the v1 API doesn't support `response_format`. Statelessness is unaffected and the reasoning scratchpad still gets dropped (it arrives in a separate `reasoning_content` field there). Note the `reasoning` on/off toggle does not apply on that endpoint.
+- Validators still compose for *semantic* checks — schema guarantees shape, not truth.
+- One quirk of constrained decoding at `temperature=0`: the model can fall into a degenerate repetition loop inside the JSON until `max_output_tokens` truncates it (observed in live testing). The harness detects invalid constrained output and automatically retries with a temperature bump (0.4) to break the loop; only after all retries fail does the row get an `[ERROR]` marker.
+
+Function calling (`tools`) also works on the compat endpoint, but agentic tool loops are deliberately out of scope: they require multi-turn history accumulation, which is exactly what this harness's stateless design avoids.
+
 ## Long documents: map-reduce
 
 `generate_long()` handles inputs of any length: the text is split at natural boundaries (paragraphs → lines → sentences → words, losslessly) into chunks of at most `chunk_chars`, the prompt is mapped over every chunk in parallel, and the partial results are combined into one final answer — hierarchically, over multiple rounds, if the partials are themselves too large. Short inputs fall through to a single plain call, so it is always safe to use.
@@ -146,6 +170,7 @@ Files are base64-encoded automatically (`.png`, `.jpg`/`.jpeg`, `.webp`, `.gif`,
 | `workers` | `1` | Concurrent requests; match your server's `parallel` slot count |
 | `chunk_chars` | `16000` | Map-reduce chunk budget (~4k tokens); keep below `max_input_chars` |
 | `validate_retries` | `2` | Corrective attempts after a validator rejection |
+| `compat_url` | derived from `base_url` | OpenAI-compat endpoint, used only for `json_schema` jobs |
 
 ## Memory & throughput notes for local models
 

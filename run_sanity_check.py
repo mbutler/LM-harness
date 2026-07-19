@@ -53,13 +53,23 @@ harness.process_csv(
 )
 
 print("=" * 60)
-print("2/5  JSON list: company extraction from support tickets")
+print("2/5  JSON list: schema-enforced structured extraction")
 print("=" * 60)
 harness.process_json_list(
     input_file=os.path.join(BASE, "raw_feedback.json"),
     output_file=os.path.join(OUT, "extracted_tickets.json"),
     target_key="customer_comment",
-    system_prompt=EXTRACT_PROMPT,
+    system_prompt="Extract the companies mentioned and the overall sentiment from this support ticket.",
+    # Grammar-constrained via the OpenAI-compat endpoint: the output CANNOT
+    # be malformed. Stored as parsed objects (not strings) in the JSON output.
+    json_schema={
+        "type": "object",
+        "properties": {
+            "companies": {"type": "array", "items": {"type": "string"}},
+            "sentiment": {"type": "string", "enum": ["POSITIVE", "NEGATIVE", "NEUTRAL"]},
+        },
+        "required": ["companies", "sentiment"],
+    },
 )
 
 print("=" * 60)

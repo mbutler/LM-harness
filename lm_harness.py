@@ -8,6 +8,7 @@ import requests
 from collections import deque
 from concurrent.futures import ThreadPoolExecutor
 from typing import Optional
+from urllib.parse import urlsplit
 
 
 class GenerationError(Exception):
@@ -56,6 +57,7 @@ class LocalLMHarness:
         workers: int = 1,
         chunk_chars: int = 16000,
         validate_retries: int = 2,
+        compat_url: Optional[str] = None,
     ):
         """
         Args:
@@ -96,8 +98,15 @@ class LocalLMHarness:
                 the reason, and asked again. Still invalid after all
                 attempts → GenerationError (an "[ERROR] ..." marker in batch
                 mode, retried on resume like any other failure).
+            compat_url: LM Studio's OpenAI-compat chat endpoint, used only
+                for json_schema jobs (the v1 API doesn't support structured
+                output). Derived from base_url's host by default.
         """
         self.base_url = base_url
+        if compat_url is None:
+            parts = urlsplit(base_url)
+            compat_url = f"{parts.scheme}://{parts.netloc}/v1/chat/completions"
+        self.compat_url = compat_url
         self.model = model
         self.timeout = (connect_timeout, timeout)
         self.max_retries = max_retries
@@ -125,7 +134,7 @@ class LocalLMHarness:
     # ------------------------------------------------------------------ #
 
     def generate(self, system_prompt: str, input_text: str, temperature: float = 0.0,
-                 validator=None, images=None) -> str:
+                 validator=None, images=None, json_schema=None) -> str:
         """
         The core generation call. Enforces statelessness, strips reasoning
         blocks, and optionally validates the output.
@@ -141,23 +150,35 @@ class LocalLMHarness:
                 Each entry is a file path or an existing "data:" URI; files
                 are base64-encoded automatically. Requires the loaded model
                 to report "vision": true in /api/v1/models.
+            json_schema: Optional JSON Schema dict. When set, the request is
+                routed through LM Studio's OpenAI-compat endpoint with
+                grammar-constrained decoding — the output is GUARANTEED to be
+                schema-conforming JSON (returned as a string). Stronger than
+                a validator for structural correctness; combine with a
+                validator only for semantic checks.
 
         Raises GenerationError after exhausting retries, instead of returning
         an error string that could silently poison downstream data.
         """
-        output = self._request(system_prompt, input_text, temperature, images)
+        output = self._dispatch(system_prompt, input_text, temperature, images, json_schema)
         if validator is None:
             return output
         return self._validate_and_correct(system_prompt, input_text, output, temperature,
-                                          validator, images)
+                                          validator, images, json_schema)
+
+    def _dispatch(self, system_prompt: str, input_text: str, temperature: float,
+                  images=None, json_schema=None) -> str:
+        """Route to the v1 endpoint, or the compat endpoint for schema jobs."""
+        if self.max_input_chars is not None and len(input_text) > self.max_input_chars:
+            print(f"  [warn] Input truncated from {len(input_text)} to {self.max_input_chars} chars.")
+            input_text = input_text[: self.max_input_chars]
+        if json_schema is not None:
+            return self._request_schema(system_prompt, input_text, temperature, json_schema, images)
+        return self._request(system_prompt, input_text, temperature, images)
 
     def _request(self, system_prompt: str, input_text: str, temperature: float,
                  images=None) -> str:
         """Single (retried) HTTP round-trip: payload build, POST, reasoning strip."""
-        if self.max_input_chars is not None and len(input_text) > self.max_input_chars:
-            print(f"  [warn] Input truncated from {len(input_text)} to {self.max_input_chars} chars.")
-            input_text = input_text[: self.max_input_chars]
-
         if images:
             # Multimodal form: the v1 API takes input as typed parts —
             # {"type": "text", "content": ...} / {"type": "image", "data_url": ...}
@@ -178,37 +199,92 @@ class LocalLMHarness:
         if self.reasoning is not None:
             payload["reasoning"] = self.reasoning
 
+        data = self._post_json(self.base_url, payload)
+
+        # Iterate through the output array to extract only the final
+        # payload, dropping the token-heavy reasoning scratchpad.
+        for item in data.get("output", []):
+            if item.get("type") == "message":
+                return item.get("content", "").strip()
+
+        # Diagnose the common failure: the model spent the entire
+        # max_output_tokens budget on reasoning and never reached
+        # the message block.
+        stats = data.get("stats", {})
+        reasoning_toks = stats.get("reasoning_output_tokens", 0)
+        total_toks = stats.get("total_output_tokens", 0)
+        if reasoning_toks and reasoning_toks >= total_toks - 2:
+            raise GenerationError(
+                f"Output cap exhausted by reasoning ({reasoning_toks}/{total_toks} tokens, "
+                f"max_output_tokens={self.max_output_tokens}) — raise max_output_tokens "
+                f"or set reasoning='off'."
+            )
+        raise GenerationError("No message block returned from API.")
+
+    def _request_schema(self, system_prompt: str, input_text: str, temperature: float,
+                        json_schema: dict, images=None) -> str:
+        """
+        Grammar-constrained generation via the OpenAI-compat endpoint —
+        the only endpoint that supports response_format (the v1 API rejects
+        it). Still stateless (no history), and the reasoning scratchpad
+        arrives in a separate 'reasoning_content' field that is dropped.
+        """
+        if images:
+            content = [{"type": "text", "text": input_text}]
+            content += [{"type": "image_url", "image_url": {"url": _to_data_url(img)}} for img in images]
+        else:
+            content = input_text
+
+        payload = {
+            "model": self.model,
+            "messages": [{"role": "system", "content": system_prompt},
+                         {"role": "user", "content": content}],
+            "temperature": temperature,
+            "response_format": {"type": "json_schema",
+                                "json_schema": {"name": "output", "strict": True,
+                                                "schema": json_schema}},
+        }
+        if self.max_output_tokens is not None:
+            payload["max_tokens"] = self.max_output_tokens
+
+        # Constrained decoding at temperature 0 can fall into a degenerate
+        # repetition loop that runs until max_tokens truncates the JSON
+        # mid-string. Deterministic retries would reproduce the exact same
+        # loop, so failed attempts retry with a temperature bump.
+        last_error, output = None, ""
+        for attempt in range(self.max_retries):
+            data = self._post_json(self.compat_url, payload)
+            try:
+                output = (data["choices"][0]["message"]["content"] or "").strip()
+            except (KeyError, IndexError, TypeError) as e:
+                raise GenerationError(f"Unexpected response shape from compat endpoint: {e}")
+            try:
+                json.loads(output)
+                return output
+            except json.JSONDecodeError as e:
+                last_error = e
+                if attempt < self.max_retries - 1:
+                    payload["temperature"] = max(temperature, 0.4)
+                    print(f"  [warn] Constrained output invalid (likely a repetition loop at "
+                          f"temperature={temperature}) — retrying at temperature={payload['temperature']}.")
+        raise GenerationError(
+            f"Schema-constrained output is not valid JSON after {self.max_retries} attempts — "
+            f"repetition loop or max_output_tokens={self.max_output_tokens} truncation "
+            f"({last_error}) | output: {output[:200]!r}"
+        )
+
+    def _post_json(self, url: str, payload: dict) -> dict:
+        """POST with retry/backoff, 4xx fail-fast, and the request-slot cap."""
         last_error = None
         for attempt in range(self.max_retries):
             try:
                 with self._request_slots:
-                    response = self.session.post(self.base_url, json=payload, timeout=self.timeout)
+                    response = self.session.post(url, json=payload, timeout=self.timeout)
                 # 4xx means the request itself is wrong — retrying won't help.
                 if 400 <= response.status_code < 500:
                     raise GenerationError(f"API rejected request ({response.status_code}): {response.text[:500]}")
                 response.raise_for_status()
-                data = response.json()
-
-                # Iterate through the output array to extract only the final
-                # payload, dropping the token-heavy reasoning scratchpad.
-                for item in data.get("output", []):
-                    if item.get("type") == "message":
-                        return item.get("content", "").strip()
-
-                # Diagnose the common failure: the model spent the entire
-                # max_output_tokens budget on reasoning and never reached
-                # the message block.
-                stats = data.get("stats", {})
-                reasoning_toks = stats.get("reasoning_output_tokens", 0)
-                total_toks = stats.get("total_output_tokens", 0)
-                if reasoning_toks and reasoning_toks >= total_toks - 2:
-                    raise GenerationError(
-                        f"Output cap exhausted by reasoning ({reasoning_toks}/{total_toks} tokens, "
-                        f"max_output_tokens={self.max_output_tokens}) — raise max_output_tokens "
-                        f"or set reasoning='off'."
-                    )
-                raise GenerationError("No message block returned from API.")
-
+                return response.json()
             except GenerationError:
                 raise
             except (requests.exceptions.RequestException, ValueError) as e:
@@ -221,7 +297,8 @@ class LocalLMHarness:
         raise GenerationError(f"API failed after {self.max_retries} attempts: {last_error}")
 
     def _validate_and_correct(self, system_prompt: str, input_text: str, output: str,
-                              temperature: float, validator, images=None) -> str:
+                              temperature: float, validator, images=None,
+                              json_schema=None) -> str:
         """Run the validator; on failure, ask the model to correct itself."""
         problem = None
         for attempt in range(self.validate_retries + 1):
@@ -236,20 +313,22 @@ class LocalLMHarness:
                     f"That response was rejected: {problem}\n"
                     f"Respond again, following the instruction exactly."
                 )
-                output = self._request(system_prompt, corrective_input, temperature, images)
+                output = self._dispatch(system_prompt, corrective_input, temperature,
+                                        images, json_schema)
         raise GenerationError(
             f"Validation failed after {self.validate_retries + 1} attempts: {problem} "
             f"| last output: {output[:200]!r}"
         )
 
     def _safe_generate(self, system_prompt: str, input_text: str, validator=None,
-                       images=None) -> str:
+                       images=None, json_schema=None) -> str:
         """
         Batch-mode wrapper: converts hard failures into a greppable
         "[ERROR] ..." marker so one bad row doesn't abort a 10k-row run.
         """
         try:
-            return self.generate(system_prompt, input_text, validator=validator, images=images)
+            return self.generate(system_prompt, input_text, validator=validator,
+                                 images=images, json_schema=json_schema)
         except GenerationError as e:
             print(f"  [error] {e}")
             return f"[ERROR] {e}"
@@ -260,7 +339,7 @@ class LocalLMHarness:
 
     def generate_long(self, system_prompt: str, input_text: str, temperature: float = 0.0,
                       chunk_chars: Optional[int] = None, combine_prompt: Optional[str] = None,
-                      validator=None) -> str:
+                      validator=None, json_schema=None) -> str:
         """
         Like generate(), but handles inputs of any length via map-reduce:
         the text is split at natural boundaries into chunks of at most
@@ -282,7 +361,8 @@ class LocalLMHarness:
         limit = chunk_chars or self.chunk_chars
         chunks = _split_text(input_text, limit)
         if len(chunks) == 1:
-            return self.generate(system_prompt, input_text, temperature, validator=validator)
+            return self.generate(system_prompt, input_text, temperature,
+                                 validator=validator, json_schema=json_schema)
 
         print(f"  [map-reduce] Input is {len(input_text)} chars — mapping over {len(chunks)} chunks.")
 
@@ -306,18 +386,23 @@ class LocalLMHarness:
         # Hierarchical reduce: combine partials in batches until everything
         # fits in one final combine call. Bounded rounds guard against
         # partials that refuse to shrink.
-        # The validator (if any) applies only to the FINAL result — partials
-        # are intermediate scratch, not the deliverable format.
+        # The validator / json_schema (if any) apply only to the FINAL result —
+        # partials are intermediate scratch, not the deliverable format.
         last_joined = _join_partials(outputs)
         for _ in range(8):
             if len(outputs) == 1:
+                if json_schema is not None:
+                    # The lone partial wasn't schema-constrained; reformat it.
+                    return self.generate(reduce_sys, outputs[0], temperature,
+                                         validator=validator, json_schema=json_schema)
                 if validator is None:
                     return outputs[0]
                 return self._validate_and_correct(reduce_sys, last_joined, outputs[0],
                                                   temperature, validator)
             joined = _join_partials(outputs)
             if len(joined) <= limit:
-                return self.generate(reduce_sys, joined, temperature, validator=validator)
+                return self.generate(reduce_sys, joined, temperature,
+                                     validator=validator, json_schema=json_schema)
             reduced = self._reduce_round(reduce_sys, outputs, limit, temperature)
             if reduced is None:  # no batching progress possible
                 break
@@ -327,7 +412,8 @@ class LocalLMHarness:
 
         # Fallback: partials won't shrink under the chunk budget; do one
         # final oversized combine (max_input_chars truncation may apply).
-        return self.generate(reduce_sys, _join_partials(outputs), temperature, validator=validator)
+        return self.generate(reduce_sys, _join_partials(outputs), temperature,
+                             validator=validator, json_schema=json_schema)
 
     def _reduce_round(self, reduce_sys: str, outputs, limit: int, temperature: float):
         """Combine consecutive partials in batches that fit the chunk budget."""
@@ -350,10 +436,12 @@ class LocalLMHarness:
         with ThreadPoolExecutor(max_workers=self.workers) as pool:
             return [o for _, o in self._ordered_parallel(pool, list(enumerate(batches)), run_batch)]
 
-    def _safe_generate_long(self, system_prompt: str, input_text: str, validator=None) -> str:
+    def _safe_generate_long(self, system_prompt: str, input_text: str, validator=None,
+                            json_schema=None) -> str:
         """Batch-mode wrapper for generate_long(); mirrors _safe_generate()."""
         try:
-            return self.generate_long(system_prompt, input_text, validator=validator)
+            return self.generate_long(system_prompt, input_text, validator=validator,
+                                      json_schema=json_schema)
         except GenerationError as e:
             print(f"  [error] {e}")
             return f"[ERROR] {e}"
@@ -380,7 +468,8 @@ class LocalLMHarness:
     # ------------------------------------------------------------------ #
 
     def process_csv(self, input_file: str, output_file: str, target_col: str,
-                    system_prompt: str, resume: bool = True, validator=None):
+                    system_prompt: str, resume: bool = True, validator=None,
+                    json_schema=None):
         """
         Reads a CSV, processes a target column, and saves to a new CSV with an
         added 'llm_output' column — or one column per prompt when
@@ -422,7 +511,8 @@ class LocalLMHarness:
             def run(pair):
                 _idx, row = pair
                 input_data = row.get(target_col, "")
-                return {key: (self._safe_generate(prompt, input_data, vdt) if input_data else "")
+                return {key: (self._safe_generate(prompt, input_data, vdt, json_schema=json_schema)
+                              if input_data else "")
                         for key, prompt, vdt in specs}
 
             failures = 0
@@ -445,7 +535,7 @@ class LocalLMHarness:
     def process_json_list(self, input_file: str, output_file: str, target_key: str,
                           system_prompt: str, resume: bool = True,
                           checkpoint_every: int = 1, retry_errors: bool = True,
-                          validator=None):
+                          validator=None, json_schema=None):
         """
         Iterates through an array of JSON objects, processes a target key, and
         saves the updated array.
@@ -492,12 +582,15 @@ class LocalLMHarness:
 
         def run(item):
             _i, obj, pending = item
-            return {key: self._safe_generate(prompt, str(obj.get(target_key, "")), vdt)
+            return {key: self._safe_generate(prompt, str(obj.get(target_key, "")), vdt,
+                                             json_schema=json_schema)
                     for key, prompt, vdt in pending}
 
         dirty = 0
         with ThreadPoolExecutor(max_workers=self.workers) as pool:
             for (i, obj, _pending), outputs in self._ordered_parallel(pool, todo, run):
+                if json_schema is not None:
+                    outputs = {k: _parse_unless_error(v) for k, v in outputs.items()}
                 obj.update(outputs)
                 print(f"Object {i+1}/{len(data)} done.")
                 dirty += 1
@@ -513,7 +606,8 @@ class LocalLMHarness:
     # ------------------------------------------------------------------ #
 
     def process_jsonl(self, input_file: str, output_file: str, target_key: str,
-                      system_prompt: str, resume: bool = True, validator=None):
+                      system_prompt: str, resume: bool = True, validator=None,
+                      json_schema=None):
         """
         Streams a JSON-Lines file (one object per line): constant memory
         regardless of dataset size, with per-line durability. Preferred over
@@ -553,12 +647,15 @@ class LocalLMHarness:
                 input_data = obj.get(target_key, "")
                 if not input_data:
                     return None
-                return {key: self._safe_generate(prompt, str(input_data), vdt)
+                return {key: self._safe_generate(prompt, str(input_data), vdt,
+                                                 json_schema=json_schema)
                         for key, prompt, vdt in specs}
 
             with ThreadPoolExecutor(max_workers=self.workers) as pool:
                 for (record_idx, obj), outputs in self._ordered_parallel(pool, records_to_do(), run):
                     if outputs is not None:
+                        if json_schema is not None:
+                            outputs = {k: _parse_unless_error(v) for k, v in outputs.items()}
                         obj.update(outputs)
                     print(f"Line {record_idx} done.")
                     outfile.write(json.dumps(obj, ensure_ascii=False) + "\n")
@@ -572,7 +669,7 @@ class LocalLMHarness:
 
     def process_directory(self, input_dir: str, output_dir: str, system_prompt: str,
                           ext: str = ".txt", resume: bool = True, map_reduce: bool = True,
-                          validator=None):
+                          validator=None, json_schema=None):
         """
         Reads files one-by-one from a directory, processes the text, and saves
         to an output directory. With resume=True (the default), files whose
@@ -612,7 +709,8 @@ class LocalLMHarness:
             with open(os.path.join(input_dir, filename), 'r', encoding='utf-8') as f:
                 text_content = f.read()
             gen = self._safe_generate_long if map_reduce else self._safe_generate
-            outputs = {key: gen(prompt, text_content, vdt) for key, prompt, vdt in specs}
+            outputs = {key: gen(prompt, text_content, vdt, json_schema=json_schema)
+                       for key, prompt, vdt in specs}
             if multi:
                 return json.dumps(outputs, indent=2, ensure_ascii=False)
             return outputs["llm_output"]
@@ -636,7 +734,7 @@ class LocalLMHarness:
     def process_image_directory(self, input_dir: str, output_dir: str, system_prompt: str,
                                 exts=(".png", ".jpg", ".jpeg", ".webp"),
                                 user_text: str = "Process this image according to your instructions.",
-                                resume: bool = True, validator=None):
+                                resume: bool = True, validator=None, json_schema=None):
         """
         Runs each image in a directory through the model (vision models
         only — the loaded model must report "vision": true in /api/v1/models)
@@ -671,7 +769,8 @@ class LocalLMHarness:
 
         def run(filename):
             image_path = os.path.join(input_dir, filename)
-            outputs = {key: self._safe_generate(prompt, user_text, vdt, images=[image_path])
+            outputs = {key: self._safe_generate(prompt, user_text, vdt, images=[image_path],
+                                                json_schema=json_schema)
                        for key, prompt, vdt in specs}
             if multi:
                 return json.dumps(outputs, indent=2, ensure_ascii=False)
@@ -824,6 +923,20 @@ def _to_data_url(image) -> str:
     with open(image, 'rb') as f:
         encoded = base64.b64encode(f.read()).decode("ascii")
     return f"data:{mime};base64,{encoded}"
+
+
+def _parse_unless_error(value):
+    """
+    For json_schema jobs writing to JSON-native formats: store the parsed
+    object rather than a JSON string. "[ERROR] ..." markers stay as strings
+    so resume can spot and retry them.
+    """
+    if isinstance(value, str) and not value.startswith("[ERROR]"):
+        try:
+            return json.loads(value)
+        except json.JSONDecodeError:
+            return value
+    return value
 
 
 def _has_failed_marker(path: str) -> bool:
